@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title id="page-title">Red de Dependencias</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root{
+  --bg:#F0F4F8;--bg2:#E8EDF5;--bg3:#DDE4EF;
+  --border:#C8D3E8;--border2:#B8C6DE;
+  --text-primary:#0F172A;--text-secondary:#334155;--text-muted:#64748B;
+  --accent:#2563EB;
+  --panel-bg:rgba(240,244,248,0.97);--panel-border:rgba(180,196,220,0.8);
+  --shadow:0 8px 32px rgba(0,0,0,0.15);
+  --node-label:#1E293B;--grid-line:rgba(0,0,0,0.04);
+}
+.dark{
+  --bg:#080C14;--bg2:#0D1421;--bg3:#111827;
+  --border:#1E293B;--border2:#243044;
+  --text-primary:#F1F5F9;--text-secondary:#94A3B8;--text-muted:#475569;
+  --accent:#3B82F6;
+  --panel-bg:rgba(13,20,33,0.97);--panel-border:rgba(30,41,59,0.8);
+  --shadow:0 8px 32px rgba(0,0,0,0.6);
+  --node-label:#CBD5E1;--grid-line:rgba(255,255,255,0.03);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);font-family:"Source Sans 3","Segoe UI",sans-serif;overflow:hidden;transition:background 0.4s;}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),
+  linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);
+  background-size:40px 40px;}
+
+/* HEADER */
+#header{position:fixed;top:0;left:0;right:0;z-index:200;background:var(--panel-bg);
+  border-bottom:1px solid var(--panel-border);backdrop-filter:blur(12px);
+  display:flex;align-items:center;gap:12px;padding:0 16px;height:52px;
+  transition:background 0.4s,border-color 0.4s;}
+.header-logo{display:flex;align-items:center;gap:10px;border-right:1px solid var(--border);padding-right:14px;margin-right:4px;}
+.logo-icon{width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,#3B82F6,#8B5CF6);
+  display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:white;flex-shrink:0;}
+.header-title{color:var(--text-primary);font-size:14px;font-weight:700;letter-spacing:-0.02em;}
+.header-sub{color:var(--text-muted);font-size:11px;font-family:"Source Code Pro",monospace;}
+.header-stats{display:flex;gap:10px;margin-left:auto;}
+.stat-pill{display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:20px;padding:3px 10px;font-family:"Source Code Pro",monospace;font-size:11px;
+  color:var(--text-secondary);cursor:default;transition:all 0.4s;}
+.stat-pill span{color:var(--accent);font-weight:600;}
+.stat-pill:hover{border-color:var(--accent);}
+.hdr-btn{width:32px;height:32px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:14px;transition:all 0.2s;color:var(--text-muted);}
+.hdr-btn:hover{background:var(--border2);color:var(--text-primary);}
+.hdr-btn.active,.hdr-btn:active{background:var(--accent);border-color:var(--accent);color:white;}
+#edit-config-btn{font-size:12px;}
+
+/* SIDEBAR */
+#sidebar{position:fixed;top:52px;left:0;bottom:0;z-index:150;width:230px;
+  background:var(--panel-bg);border-right:1px solid var(--panel-border);
+  backdrop-filter:blur(12px);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;
+  transition:background 0.4s,border-color 0.4s,width 0.3s ease;}
+#sidebar.collapsed{width:0;}
+#sidebar.collapsed > *{opacity:0;pointer-events:none;}
+#sidebar-toggle{position:fixed;top:50%;left:230px;transform:translateY(-50%);z-index:160;
+  width:16px;height:48px;background:var(--panel-bg);border:1px solid var(--panel-border);
+  border-left:none;border-radius:0 6px 6px 0;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;color:var(--text-muted);font-size:10px;
+  transition:left 0.3s ease,background 0.4s;}
+#sidebar-toggle:hover{background:var(--bg3);color:var(--text-primary);}
+#sidebar-toggle.collapsed{left:0;}
+
+.sidebar-section{padding:11px 13px;border-bottom:1px solid var(--border);}
+
+/* SIDEBAR LABEL WITH TOOLTIP */
+.sidebar-label{font-family:"Source Code Pro",monospace;font-size:9px;font-weight:600;
+  text-transform:uppercase;letter-spacing:0.12em;color:var(--text-muted);margin-bottom:7px;
+  display:flex;align-items:center;gap:5px;}
+.tip-icon{width:13px;height:13px;border-radius:50%;background:var(--bg3);
+  border:1px solid var(--border);color:var(--text-muted);font-size:8px;font-weight:700;
+  display:inline-flex;align-items:center;justify-content:center;cursor:default;
+  flex-shrink:0;font-family:"Source Code Pro",monospace;transition:all 0.2s;line-height:1;}
+.tip-icon:hover{background:var(--accent);border-color:var(--accent);color:white;}
+.tip-wrap{position:relative;}
+.tip-bubble{position:absolute;left:18px;top:50%;transform:translateY(-50%);
+  background:var(--bg2);border:1px solid var(--border2);border-radius:9px;
+  padding:9px 12px;width:210px;font-size:11px;color:var(--text-secondary);line-height:1.55;
+  box-shadow:var(--shadow);z-index:500;pointer-events:none;opacity:0;
+  transition:opacity 0.15s ease;font-family:"Source Sans 3","Segoe UI",sans-serif;font-weight:400;}
+.tip-icon:hover + .tip-bubble{opacity:1;}
+
+#search-wrap{position:relative;}
+#search{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:7px 10px 7px 28px;color:var(--text-primary);font-size:12px;
+  font-family:"Source Sans 3","Segoe UI",sans-serif;outline:none;transition:all 0.3s;}
+#search:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,130,246,0.15);}
+#search::placeholder{color:var(--text-muted);}
+.search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:12px;}
+.tier-btn,.carpeta-btn{display:flex;align-items:center;gap:7px;width:100%;padding:5px 7px;
+  border-radius:6px;border:none;background:transparent;cursor:pointer;transition:all 0.2s;margin-bottom:2px;}
+.tier-btn:hover,.carpeta-btn:hover{background:var(--bg3);}
+.tier-btn.inactive,.carpeta-btn.inactive{opacity:0.28;}
+.tier-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.carpeta-dot{width:7px;height:7px;border-radius:2px;flex-shrink:0;}
+.tier-name,.carpeta-name{color:var(--text-secondary);font-size:11px;font-weight:600;flex:1;text-align:left;}
+.tier-count,.carpeta-count{font-family:"Source Code Pro",monospace;font-size:10px;color:var(--text-muted);
+  background:var(--bg3);padding:1px 5px;border-radius:10px;}
+.layout-btn{width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text-secondary);font-size:11px;
+  font-family:"Source Sans 3","Segoe UI",sans-serif;cursor:pointer;transition:all 0.2s;text-align:left;margin-bottom:3px;}
+.layout-btn:hover{border-color:var(--accent);color:var(--accent);}
+.slider-wrap{display:flex;flex-direction:column;gap:4px;margin-bottom:7px;}
+.slider-row{display:flex;justify-content:space-between;align-items:center;}
+.slider-val{font-family:"Source Code Pro",monospace;font-size:10px;color:var(--accent);}
+input[type=range]{width:100%;accent-color:var(--accent);height:4px;border-radius:2px;cursor:pointer;}
+.depth-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+  border-radius:6px;border:1px solid var(--border);background:var(--bg3);
+  color:var(--text-secondary);font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s;margin-right:4px;}
+.depth-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(59,130,246,0.1);}
+.depth-btn:hover{border-color:var(--accent);}
+
+/* CANVAS */
+#canvas{position:fixed;top:52px;left:230px;right:0;bottom:28px;
+  width:calc(100vw - 230px);height:calc(100vh - 80px);
+  transition:left 0.3s ease,width 0.3s ease,right 0.3s ease;}
+#canvas.sidebar-collapsed{left:0;width:100vw;}
+#canvas.panel-open{right:260px;width:calc(100vw - 490px);}
+#canvas.help-open{right:284px;}
+#canvas.sidebar-collapsed.help-open{right:284px;width:calc(100vw - 284px);}
+
+/* GRAPH */
+.link{stroke-opacity:0.45;fill:none;}
+.hide-arrows .link{marker-end:none !important;}
+.node{cursor:pointer;}
+.node text{font-family:"Source Code Pro",monospace;pointer-events:none;font-size:9px;}
+.node-label{paint-order:stroke fill;}
+.node-label-shadow{stroke:var(--bg);stroke-width:4px;stroke-linejoin:round;
+  fill:var(--bg);opacity:0.85;pointer-events:none;}
+.node.highlighted circle{stroke-width:2.5px !important;opacity:1;}
+.node.dimmed{opacity:0.12;}
+.node.selected circle{stroke-width:3px !important;}
+.link.dimmed{opacity:0.07;}
+.link.highlighted{stroke-opacity:0.75;stroke-width:1.8px;}
+.node.search-match circle{stroke-width:3px !important;}
+.selection-ring{fill:none;stroke-opacity:0.5;stroke-dasharray:4 3;
+  animation:spin-ring 8s linear infinite;pointer-events:none;}
+@keyframes spin-ring{from{stroke-dashoffset:0;}to{stroke-dashoffset:-100;}}
+
+/* TOOLTIP */
+#tooltip{position:fixed;pointer-events:none;z-index:300;background:var(--panel-bg);
+  border:1px solid var(--border2);border-radius:10px;padding:14px 16px;width:260px;
+  display:none;box-shadow:var(--shadow);backdrop-filter:blur(16px);transition:background 0.3s;}
+.t-header{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;}
+.t-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
+.t-name{color:var(--text-primary);font-size:13px;font-weight:700;line-height:1.2;}
+.t-full{color:var(--text-muted);font-size:10px;font-family:"Source Code Pro",monospace;margin-top:1px;}
+.t-divider{height:1px;background:var(--border);margin:8px 0;}
+.t-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.t-cell{background:var(--bg3);border-radius:6px;padding:6px 8px;}
+.t-cell-label{color:var(--text-muted);font-size:9px;text-transform:uppercase;
+  letter-spacing:0.08em;font-family:"Source Code Pro",monospace;}
+.t-cell-val{color:var(--text-primary);font-size:13px;font-weight:700;margin-top:1px;}
+.t-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;
+  font-size:10px;font-weight:600;margin-top:8px;margin-right:4px;border:1px solid;}
+
+/* DETAIL PANEL */
+#detail-panel{position:fixed;top:52px;right:0;width:260px;bottom:28px;z-index:140;
+  background:var(--panel-bg);border-left:1px solid var(--panel-border);
+  backdrop-filter:blur(12px);transform:translateX(100%);transition:transform 0.3s ease;
+  display:flex;flex-direction:column;overflow:hidden;}
+#detail-panel.open{transform:translateX(0);}
+#infobar.panel-open{right:260px;}
+.dp-header{padding:14px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;}
+.dp-title{color:var(--text-primary);font-size:13px;font-weight:700;}
+.dp-close{background:none;border:none;cursor:pointer;color:var(--text-muted);
+  font-size:18px;line-height:1;padding:2px 6px;border-radius:4px;}
+.dp-close:hover{background:var(--bg3);color:var(--text-primary);}
+.dp-body{padding:14px 16px;overflow-y:auto;flex:1;}
+.dp-section-title{font-family:"Source Code Pro",monospace;font-size:9px;font-weight:600;
+  text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:12px 0 6px;}
+.dp-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
+.dp-stat{background:var(--bg3);border-radius:8px;padding:8px 10px;}
+.dp-stat-label{font-size:9px;color:var(--text-muted);text-transform:uppercase;
+  letter-spacing:0.08em;font-family:"Source Code Pro",monospace;}
+.dp-stat-val{font-size:18px;font-weight:700;color:var(--text-primary);margin-top:2px;}
+.dp-measure-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;
+  border-radius:12px;font-size:10px;font-weight:600;margin:2px;border:1px solid;cursor:pointer;}
+.dp-measure-chip:hover{filter:brightness(1.1);}
+
+/* HELP PANEL */
+#help-panel{position:fixed;top:52px;right:0;width:284px;bottom:28px;z-index:142;
+  background:var(--panel-bg);border-left:1px solid var(--panel-border);
+  backdrop-filter:blur(12px);transform:translateX(100%);
+  transition:transform 0.3s ease;overflow-y:auto;display:flex;flex-direction:column;}
+#help-panel.open{transform:translateX(0);}
+.help-inner{padding:16px 18px;flex:1;}
+.help-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.help-hdr-title{font-size:13px;font-weight:700;color:var(--text-primary);}
+.help-close-x{background:none;border:none;cursor:pointer;color:var(--text-muted);
+  font-size:20px;line-height:1;padding:2px 6px;border-radius:4px;transition:all 0.2s;}
+.help-close-x:hover{background:var(--bg3);color:var(--text-primary);}
+.help-section{margin-bottom:16px;}
+.help-section-title{font-size:11px;font-weight:700;color:var(--text-primary);
+  padding-bottom:5px;border-bottom:1px solid var(--border);margin-bottom:8px;
+  display:flex;align-items:center;gap:5px;}
+.help-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;
+  font-size:11px;color:var(--text-secondary);line-height:1.5;}
+.help-key{background:var(--bg3);border:1px solid var(--border);border-radius:4px;
+  padding:1px 6px;font-family:"Source Code Pro",monospace;font-size:10px;
+  color:var(--accent);white-space:nowrap;flex-shrink:0;margin-top:1px;}
+.help-vis{display:flex;align-items:center;gap:8px;margin-bottom:7px;
+  font-size:11px;color:var(--text-secondary);line-height:1.5;}
+.help-update-box{background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:11px 13px;font-size:11px;color:var(--text-secondary);line-height:1.8;}
+
+/* ZOOM / MINIMAP / INFOBAR */
+#zoom-controls{position:fixed;bottom:120px;right:16px;z-index:200;
+  display:flex;flex-direction:column;gap:4px;transition:right 0.3s ease;}
+#zoom-controls.help-open{right:300px;}
+.zoom-btn{width:32px;height:32px;border-radius:8px;background:var(--panel-bg);
+  border:1px solid var(--border);color:var(--text-secondary);font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all 0.2s;backdrop-filter:blur(8px);}
+.zoom-btn:hover{background:var(--border2);color:var(--text-primary);}
+#minimap{position:fixed;bottom:36px;right:14px;z-index:190;width:130px;height:90px;
+  background:var(--panel-bg);border:1px solid var(--border);border-radius:8px;
+  overflow:hidden;cursor:grab;transition:right 0.3s ease;}
+#minimap.panel-open{right:274px;}
+#minimap-svg{width:100%;height:100%;}
+#minimap-viewport{fill:rgba(59,130,246,0.12);stroke:#3B82F6;stroke-width:1.5;}
+#infobar{position:fixed;bottom:0;left:230px;right:0;z-index:150;background:var(--panel-bg);
+  border-top:1px solid var(--panel-border);padding:4px 14px;display:flex;align-items:center;
+  gap:14px;font-family:"Source Code Pro",monospace;font-size:10px;color:var(--text-muted);
+  backdrop-filter:blur(8px);transition:left 0.3s ease;}
+#infobar.sidebar-collapsed{left:0;}
+#infobar span{color:var(--text-secondary);}
+#selected-info{color:var(--accent);margin-left:auto;}
+
+/* CONFIG MODAL */
+#config-modal{display:none;position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,0.5);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center;}
+.cfg-box{background:var(--panel-bg);border:1px solid var(--border2);border-radius:16px;
+  width:420px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;}
+.cfg-head{display:flex;justify-content:space-between;align-items:center;
+  padding:18px 22px 14px;border-bottom:1px solid var(--border);}
+.cfg-head-title{font-size:14px;font-weight:700;color:var(--text-primary);}
+.cfg-head-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+.cfg-close-x{background:none;border:none;cursor:pointer;color:var(--text-muted);
+  font-size:22px;line-height:1;padding:2px 6px;border-radius:6px;transition:all 0.2s;}
+.cfg-close-x:hover{background:var(--bg3);color:var(--text-primary);}
+.cfg-body{padding:20px 22px;}
+.cfg-preview{background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  padding:11px 14px;margin-bottom:18px;display:flex;align-items:center;gap:10px;}
+.cfg-prev-logo{width:26px;height:26px;border-radius:6px;flex-shrink:0;
+  background:linear-gradient(135deg,#3B82F6,#8B5CF6);display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:800;color:white;}
+.cfg-prev-label{font-size:9px;color:var(--text-muted);font-family:"Source Code Pro",monospace;
+  background:var(--bg);padding:2px 6px;border-radius:4px;margin-left:auto;flex-shrink:0;}
+.cfg-field{margin-bottom:15px;}
+.cfg-field-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}
+.cfg-field-label{font-size:10px;font-family:"Source Code Pro",monospace;
+  text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);}
+.cfg-field-count{font-size:10px;color:var(--text-muted);}
+.cfg-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:9px 12px;color:var(--text-primary);font-size:13px;
+  font-family:"Source Sans 3","Segoe UI",sans-serif;outline:none;
+  transition:border-color 0.2s,box-shadow 0.2s;}
+.cfg-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,130,246,0.12);}
+.cfg-helper{font-size:11px;color:var(--text-muted);margin-top:4px;}
+.cfg-actions{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:4px;}
+.cfg-error{font-size:11px;color:#EF4444;display:none;margin-right:auto;}
+.cfg-cancel{padding:9px 18px;border-radius:8px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text-secondary);font-size:13px;cursor:pointer;
+  font-family:"Source Sans 3","Segoe UI",sans-serif;transition:all 0.2s;}
+.cfg-save{padding:9px 18px;border-radius:8px;border:none;background:var(--accent);
+  color:white;font-size:13px;font-weight:600;cursor:pointer;
+  font-family:"Source Sans 3","Segoe UI",sans-serif;transition:all 0.2s;}
+.cfg-save:hover{filter:brightness(1.1);}
+
+/* WELCOME BANNER */
+#welcome-banner{position:fixed;bottom:36px;left:50%;transform:translateX(-50%);
+  z-index:300;background:var(--panel-bg);border:1px solid var(--border2);
+  border-radius:12px;padding:11px 16px;display:flex;align-items:center;gap:14px;
+  box-shadow:var(--shadow);backdrop-filter:blur(12px);
+  animation:slideUp 0.4s ease;}
+@keyframes slideUp{
+  from{opacity:0;transform:translateX(-50%) translateY(14px);}
+  to{opacity:1;transform:translateX(-50%) translateY(0);}}
+.wb-text{font-size:12px;color:var(--text-secondary);line-height:1.5;}
+.wb-text strong{color:var(--text-primary);}
+.wb-actions{display:flex;gap:6px;flex-shrink:0;}
+.wb-help{padding:5px 12px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text-secondary);font-size:11px;cursor:pointer;
+  font-family:"Source Sans 3","Segoe UI",sans-serif;transition:all 0.2s;white-space:nowrap;}
+.wb-help:hover{border-color:var(--accent);color:var(--accent);}
+.wb-dismiss{padding:5px 12px;border-radius:6px;border:none;background:var(--accent);
+  color:white;font-size:11px;font-weight:600;cursor:pointer;
+  font-family:"Source Sans 3","Segoe UI",sans-serif;transition:all 0.2s;white-space:nowrap;}
+.wb-dismiss:hover{filter:brightness(1.1);}
+</style>
+</head>
+<body>
+
+<button id="sidebar-toggle" title="Colapsar/expandir panel">‹</button>
+
+<div id="header">
+  <div class="header-logo">
+    <div class="logo-icon" id="logo-icon">T</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div>
+        <div class="header-title" id="header-title">Cargando...</div>
+        <div class="header-sub" id="header-sub">Modelo semántico</div>
+      </div>
+      <button id="edit-config-btn" class="hdr-btn" title="Editar título del gráfico" style="width:28px;height:28px;font-size:11px;margin-left:2px;">✏️</button>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="stat-pill" title="Total de medidas DAX en el modelo">Medidas <span id="s-nodes">—</span></div>
+    <div class="stat-pill" title="Relaciones de dependencia (medida A usa medida B en su fórmula DAX)">Dependencias <span id="s-edges">—</span></div>
+    <div class="stat-pill" title="Medidas visibles con los filtros activos">Visibles <span id="s-visible">—</span></div>
+    <div class="stat-pill" title="Medidas con 10 o más usos — los nodos más críticos del grafo">Hubs críticos <span id="s-hubs">—</span></div>
+  </div>
+  <button id="help-btn" class="hdr-btn" title="Abrir guía de uso">?</button>
+  <button id="theme-toggle" class="hdr-btn" title="Cambiar tema claro/oscuro">🌙</button>
+</div>
+
+<div id="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-label tip-wrap">
+      Buscar medida
+      <span class="tip-icon" tabindex="0">?</span>
+      <span class="tip-bubble">Escribe parte del nombre para resaltar coincidencias. Los demás nodos se atenúan sin desaparecer del canvas.</span>
+    </div>
+    <div id="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="search" type="text" placeholder="Nombre de medida...">
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label tip-wrap">
+      Profundidad de dependencias
+      <span class="tip-icon" tabindex="0">?</span>
+      <span class="tip-bubble"><b>1</b>: solo conexiones directas de la medida seleccionada.<br><b>2</b>: más las dependencias de esas conexiones.<br><b>3</b>: expande un nivel adicional.</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
+      <button class="depth-btn active" data-depth="1">1</button>
+      <button class="depth-btn" data-depth="2">2</button>
+      <button class="depth-btn" data-depth="3">3</button>
+      <span style="font-size:10px;color:var(--text-muted);">niveles al seleccionar</span>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label tip-wrap">
+      Criticidad (Tier)
+      <span class="tip-icon" tabindex="0">?</span>
+      <span class="tip-bubble">Clasifica por impacto de uso en el modelo.<br>🔴 Crítica: ≥10 usos · 🟠 Alto: ≥4 · 🟡 Medio: ≥2 · 🟢 Bajo: ≥1 · ⚪ Sin uso: 0</span>
+    </div>
+    <div id="tier-filters"></div>
+    <div style="display:flex;gap:6px;margin-top:5px;">
+      <button onclick="window.setAllTiers(true)" class="layout-btn" style="padding:4px 8px;font-size:10px;margin:0;">✓ Todos</button>
+      <button onclick="window.setAllTiers(false)" class="layout-btn" style="padding:4px 8px;font-size:10px;margin:0;">✕ Ninguno</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label tip-wrap">
+      Carpeta
+      <span class="tip-icon" tabindex="0">?</span>
+      <span class="tip-bubble">Filtra por carpeta del modelo semántico. El color de relleno de cada nodo y sus líneas corresponde a su carpeta.</span>
+    </div>
+    <div id="carpeta-filters"></div>
+    <div style="display:flex;gap:6px;margin-top:5px;">
+      <button onclick="window.setAllCarpetas(true)" class="layout-btn" style="padding:4px 8px;font-size:10px;margin:0;">✓ Todas</button>
+      <button onclick="window.setAllCarpetas(false)" class="layout-btn" style="padding:4px 8px;font-size:10px;margin:0;">✕ Ninguna</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label tip-wrap">
+      Estado de uso
+      <span class="tip-icon" tabindex="0">?</span>
+      <span class="tip-bubble"><b>Usado</b>: aparece en reportes o en otra medida.<br><b>Sin uso</b>: no se referencia en ningún lugar.<br><b>Usado por no usada</b>: solo lo usa una medida que tampoco se usa.</span>
+    </div>
+    <div id="estado-filters"></div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label tip-wrap">
+      Física
+      <span class="tip-icon" tabindex="0">?</span>
+      <span class="tip-bubble"><b>Repulsión</b>: distancia general entre nodos no conectados.<br><b>Longitud</b>: distancia ideal entre nodos conectados.<br><b>Gravedad</b>: fuerza que jala todos los nodos hacia el centro.</span>
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-row"><span style="color:var(--text-muted);font-size:11px;">Repulsión</span><span class="slider-val" id="charge-val">250</span></div>
+      <input type="range" id="charge-slider" min="50" max="600" value="250">
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-row"><span style="color:var(--text-muted);font-size:11px;">Longitud enlaces</span><span class="slider-val" id="dist-val">80</span></div>
+      <input type="range" id="dist-slider" min="30" max="200" value="80">
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-row"><span style="color:var(--text-muted);font-size:11px;">Gravedad central</span><span class="slider-val" id="gravity-val">4</span></div>
+      <input type="range" id="gravity-slider" min="1" max="20" value="4">
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label tip-wrap">
+      Opciones visuales
+      <span class="tip-icon" tabindex="0">?</span>
+      <span class="tip-bubble"><b>Agrupar por carpeta</b>: reorganiza los nodos en islas por carpeta.<br><b>Aislar al seleccionar</b>: oculta todo excepto la medida y sus vecinos conectados.</span>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;">
+      <input type="checkbox" id="show-labels" checked style="accent-color:var(--accent);">
+      <span style="color:var(--text-secondary);font-size:12px;">Mostrar etiquetas</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;">
+      <input type="checkbox" id="show-arrows" checked style="accent-color:var(--accent);">
+      <span style="color:var(--text-secondary);font-size:12px;">Mostrar flechas</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;">
+      <input type="checkbox" id="cluster-mode" style="accent-color:var(--accent);">
+      <span style="color:var(--text-secondary);font-size:12px;">Agrupar por carpeta</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;">
+      <input type="checkbox" id="isolate-selected" style="accent-color:var(--accent);">
+      <span style="color:var(--text-secondary);font-size:12px;">Aislar al seleccionar</span>
+    </label>
+  </div>
+
+  <div class="sidebar-section">
+    <button class="layout-btn" id="reset-btn" title="Volver al zoom y posición inicial">⟳ Resetear vista</button>
+    <button class="layout-btn" id="recalc-btn" title="Redistribuir todos los nodos con nueva simulación">⚡ Recalcular layout</button>
+  </div>
+</div>
+
+<svg id="canvas"></svg>
+
+<!-- DETAIL PANEL -->
+<div id="detail-panel">
+  <div class="dp-header">
+    <span class="dp-title" id="dp-title">Detalle de medida</span>
+    <button class="dp-close" id="dp-close">×</button>
+  </div>
+  <div class="dp-body"><div id="dp-content"></div></div>
+</div>
+
+<!-- HELP PANEL -->
+<div id="help-panel">
+  <div class="help-inner">
+    <div class="help-hdr">
+      <span class="help-hdr-title">📖 Guía de uso</span>
+      <button class="help-close-x" id="help-close-x">×</button>
+    </div>
+
+    <div class="help-section">
+      <div class="help-section-title">🖱 Navegación del canvas</div>
+      <div class="help-row"><span class="help-key">Scroll</span><span>Zoom in / out sobre el canvas</span></div>
+      <div class="help-row"><span class="help-key">Arrastrar fondo</span><span>Mover el canvas libremente</span></div>
+      <div class="help-row"><span class="help-key">Arrastrar nodo</span><span>Reposicionar una medida</span></div>
+      <div class="help-row"><span class="help-key">Click nodo</span><span>Seleccionar y ver panel de detalle</span></div>
+      <div class="help-row"><span class="help-key">Click mismo nodo</span><span>Deseleccionar y limpiar</span></div>
+      <div class="help-row"><span class="help-key">ESC</span><span>Limpiar selección y cerrar paneles</span></div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-section-title">👁 Lectura visual</div>
+      <div class="help-vis">
+        <div style="width:14px;height:14px;border-radius:50%;background:#3B82F655;border:2.5px solid #EF4444;flex-shrink:0;"></div>
+        <span><strong>Tamaño</strong> del círculo = usos totales en el modelo</span>
+      </div>
+      <div class="help-vis">
+        <div style="width:16px;height:3px;background:#EF4444;border-radius:2px;flex-shrink:0;margin-top:1px;"></div>
+        <span><strong>Color del borde</strong> = Tier: 🔴 Crítica · 🟠 Alto · 🟡 Medio · 🟢 Bajo · ⚪ Sin uso</span>
+      </div>
+      <div class="help-vis">
+        <div style="width:16px;height:3px;background:#3B82F6;border-radius:2px;flex-shrink:0;margin-top:1px;"></div>
+        <span><strong>Color relleno y líneas</strong> = carpeta del modelo semántico</span>
+      </div>
+      <div class="help-vis">
+        <span style="font-size:14px;flex-shrink:0;">→</span>
+        <span><strong>Flecha A → B</strong>: medida A usa B en su fórmula DAX</span>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-section-title">🔍 Análisis de dependencias</div>
+      <div class="help-row"><span class="help-key">Nivel 1</span><span>Solo conexiones directas de la medida</span></div>
+      <div class="help-row"><span class="help-key">Nivel 2</span><span>Más las dependencias de esas conexiones</span></div>
+      <div class="help-row"><span class="help-key">Nivel 3</span><span>Un nivel adicional de profundidad</span></div>
+      <div class="help-row" style="margin-top:4px;">Los <strong>chips de color</strong> en el panel de detalle navegan a esa medida al hacer click.</div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-section-title">⚙ Controles del sidebar</div>
+      <div class="help-row"><span class="help-key">‹ ›</span><span>Colapsar/expandir el sidebar para ganar espacio</span></div>
+      <div class="help-row"><span class="help-key">Buscador</span><span>Resalta coincidencias sin ocultar el grafo</span></div>
+      <div class="help-row"><span class="help-key">Filtros</span><span>Tier, Carpeta y Estado se combinan entre sí</span></div>
+      <div class="help-row"><span class="help-key">Física</span><span>Repulsión, longitud y gravedad ajustan la distribución</span></div>
+      <div class="help-row"><span class="help-key">⟳ Recalcular</span><span>Nueva distribución aleatoria de nodos</span></div>
+      <div class="help-row"><span class="help-key">↓ Exportar</span><span>Descarga el gráfico como archivo SVG</span></div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-section-title">🔄 Actualizar con nuevas medidas</div>
+      <div class="help-update-box">
+        <strong>1.</strong> Exporta el Excel de <em>Measure Killer</em> con todos los objetos del modelo.<br>
+        <strong>2.</strong> Pide a una IA: <em>"Genera arrays NODES y EDGES para D3.js desde este Excel, filtrando Type=Measure y Used_in_object_type=Measure."</em><br>
+        <strong>3.</strong> Reemplaza <code style="background:var(--bg);padding:1px 5px;border-radius:3px;">const NODES</code> y <code style="background:var(--bg);padding:1px 5px;border-radius:3px;">const EDGES</code> en este archivo HTML.<br>
+        <strong>4.</strong> Haz click en ✏️ para actualizar el título si es necesario.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<!-- CONFIG MODAL -->
+<div id="config-modal">
+  <div class="cfg-box">
+    <div class="cfg-head">
+      <div>
+        <div class="cfg-head-title">Configurar gráfico</div>
+        <div class="cfg-head-sub">El texto que escribas es exactamente lo que aparecerá.</div>
+      </div>
+      <button class="cfg-close-x" id="cfg-close-x">×</button>
+    </div>
+    <div class="cfg-body">
+      <div class="cfg-preview">
+        <div class="cfg-prev-logo" id="prev-logo">T</div>
+        <div style="min-width:0;">
+          <div id="prev-title" style="font-size:12px;font-weight:700;color:var(--text-primary);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Título</div>
+          <div id="prev-sub" style="font-size:10px;color:var(--text-muted);
+            font-family:'Source Code Pro',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Subtítulo</div>
+        </div>
+        <span class="cfg-prev-label">VISTA PREVIA</span>
+      </div>
+      <div class="cfg-field">
+        <div class="cfg-field-head">
+          <label class="cfg-field-label" for="cfg-title">Título principal <span style="color:#EF4444;">*</span></label>
+          <span class="cfg-field-count" id="cfg-title-count">0 / 60</span>
+        </div>
+        <input id="cfg-title" class="cfg-input" type="text" maxlength="60" placeholder="Ej: Ventas LATAM · Dependencias DAX">
+        <div class="cfg-helper">Escribe el texto completo. Sin texto adicional alrededor.</div>
+      </div>
+      <div class="cfg-field">
+        <div class="cfg-field-head">
+          <label class="cfg-field-label" for="cfg-sub">Subtítulo <span style="font-weight:400;">(opcional)</span></label>
+          <span class="cfg-field-count" id="cfg-sub-count">0 / 80</span>
+        </div>
+        <input id="cfg-sub" class="cfg-input" type="text" maxlength="80" placeholder="Ej: Modelo semántico v7 · 72 medidas">
+        <div class="cfg-helper">Útil para indicar versión, fecha o contexto del modelo.</div>
+      </div>
+      <div class="cfg-actions">
+        <span class="cfg-error" id="cfg-error">⚠ El título es obligatorio.</span>
+        <button class="cfg-cancel" id="cfg-cancel">Cancelar</button>
+        <button class="cfg-save" id="cfg-save">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- WELCOME BANNER -->
+<div id="welcome-banner">
+  <div class="wb-text">
+    <strong>Gráfico de dependencias DAX</strong> · Tiendas AHORA<br>
+    Scroll: zoom &nbsp;·&nbsp; Click en nodo: ver dependencias &nbsp;·&nbsp; Botón <strong>?</strong>: guía completa
+  </div>
+  <div class="wb-actions">
+    <button class="wb-help" id="wb-help">Ver guía</button>
+    <button class="wb-dismiss" id="wb-dismiss">Entendido</button>
+  </div>
+</div>
+
+<div id="infobar">
+  <span>Scroll: zoom</span>
+  <span>Click nodo: detalle</span>
+  <span>Arrastrar: mover</span>
+  <span>ESC: limpiar</span>
+  <span id="selected-info"></span>
+</div>
+
+<div id="zoom-controls">
+  <button class="zoom-btn" id="zoom-in" title="Acercar">+</button>
+  <button class="zoom-btn" id="zoom-fit" title="Ajustar todo al canvas">⊡</button>
+  <button class="zoom-btn" id="zoom-out" title="Alejar">−</button>
+  <button class="zoom-btn" id="export-btn" title="Exportar como SVG">↓</button>
+</div>
+
+<div id="minimap"><svg id="minimap-svg"><rect id="minimap-viewport" x="0" y="0" width="20" height="20"/></svg></div>
+
+<script>
+window.addEventListener("load", function() {
+// ═══ CONFIG ═══
+const CONFIG = {
+  headerTitle: "Tiendas AHORA · Dependencias",
+  headerSub:   "Modelo semántico v6 · 65 medidas",
+};
+
+// ═══ DATA ═══
+const NODES = [{"id":0,"name":"Folder_Control","full_name":"00.00_Folder_Control","carpeta":"00_Base","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":0,"estado":"Unused"},{"id":1,"name":"Venta_Total","full_name":"00.01_Venta_Total","carpeta":"00_Base","usos":34,"tier":"Critica","refs_in":18,"refs_out":0,"estado":"Used"},{"id":2,"name":"Venta_Total_fmt","full_name":"00.02_Venta_Total_fmt","carpeta":"00_Base","usos":17,"tier":"Critica","refs_in":11,"refs_out":0,"estado":"Used"},{"id":3,"name":"Coste_Total","full_name":"00.03_Coste_Total","carpeta":"00_Base","usos":3,"tier":"Medio","refs_in":1,"refs_out":0,"estado":"Used"},{"id":4,"name":"Beneficio","full_name":"00.04_Beneficio","carpeta":"00_Base","usos":4,"tier":"Alto","refs_in":1,"refs_out":2,"estado":"Used"},{"id":5,"name":"Beneficio_Pct","full_name":"00.05_Beneficio_Pct","carpeta":"00_Base","usos":8,"tier":"Alto","refs_in":0,"refs_out":2,"estado":"Used"},{"id":6,"name":"Cantidad_Total","full_name":"00.06_Cantidad_Total","carpeta":"00_Base","usos":1,"tier":"Bajo","refs_in":0,"refs_out":0,"estado":"Used"},{"id":7,"name":"N_Tickets","full_name":"00.07_N_Tickets","carpeta":"00_Base","usos":5,"tier":"Alto","refs_in":1,"refs_out":0,"estado":"Used"},{"id":8,"name":"N_Lineas","full_name":"00.08_N_Lineas","carpeta":"00_Base","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":0,"estado":"Unused"},{"id":9,"name":"Productos_Vendidos","full_name":"00.09_Productos_Vendidos","carpeta":"00_Base","usos":2,"tier":"Medio","refs_in":0,"refs_out":0,"estado":"Used"},{"id":10,"name":"Venta_Total_Label","full_name":"00.10_Venta_Total_Label","carpeta":"00_Base","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":1,"estado":"Unused"},{"id":11,"name":"Ticket_Medio","full_name":"01.01_Ticket_Medio","carpeta":"01_Analisis_Venta","usos":6,"tier":"Alto","refs_in":0,"refs_out":2,"estado":"Used"},{"id":12,"name":"Cantidad_AVG","full_name":"01.02_Cantidad_AVG","carpeta":"01_Analisis_Venta","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":0,"estado":"Unused"},{"id":13,"name":"Venta_AVG_Dia","full_name":"01.03_Venta_AVG_Dia","carpeta":"01_Analisis_Venta","usos":1,"tier":"Bajo","refs_in":0,"refs_out":1,"estado":"Used"},{"id":14,"name":"Ventas_Todas_Tiendas","full_name":"01.04_Ventas_Todas_Tiendas","carpeta":"01_Analisis_Venta","usos":1,"tier":"Bajo","refs_in":1,"refs_out":1,"estado":"Used"},{"id":15,"name":"Ventas_Todos_Productos","full_name":"01.05_Ventas_Todos_Productos","carpeta":"01_Analisis_Venta","usos":2,"tier":"Medio","refs_in":1,"refs_out":1,"estado":"Used"},{"id":16,"name":"Pct_Venta_Tienda","full_name":"01.06_Pct_Venta_Tienda","carpeta":"01_Analisis_Venta","usos":1,"tier":"Bajo","refs_in":0,"refs_out":2,"estado":"Used"},{"id":17,"name":"Ratio_Venta_Producto","full_name":"01.07_Ratio_Venta_Producto","carpeta":"01_Analisis_Venta","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":2,"estado":"Unused"},{"id":18,"name":"Venta_Top5_Categoria","full_name":"01.08_Venta_Top5_Categoria","carpeta":"01_Analisis_Venta","usos":1,"tier":"Bajo","refs_in":0,"refs_out":1,"estado":"Used"},{"id":19,"name":"Presup_Total","full_name":"02.01_Presup_Total","carpeta":"02_Analisis_Presupuesto","usos":13,"tier":"Critica","refs_in":5,"refs_out":0,"estado":"Used"},{"id":20,"name":"Varianza_Presup_Abs","full_name":"02.02_Varianza_Presup_Abs","carpeta":"02_Analisis_Presupuesto","usos":7,"tier":"Alto","refs_in":2,"refs_out":2,"estado":"Used"},{"id":21,"name":"Varianza_Presup_Pct","full_name":"02.03_Varianza_Presup_Pct","carpeta":"02_Analisis_Presupuesto","usos":4,"tier":"Alto","refs_in":0,"refs_out":2,"estado":"Used"},{"id":22,"name":"Presup_Max_Visual","full_name":"02.04_Presup_Max_Visual","carpeta":"02_Analisis_Presupuesto","usos":1,"tier":"Bajo","refs_in":0,"refs_out":2,"estado":"Used"},{"id":23,"name":"Ventas_MA","full_name":"03.01_Ventas_MA","carpeta":"03_Time_Intelligence","usos":3,"tier":"Medio","refs_in":1,"refs_out":1,"estado":"Used"},{"id":24,"name":"Ventas_MTD","full_name":"03.02_Ventas_MTD","carpeta":"03_Time_Intelligence","usos":1,"tier":"Bajo","refs_in":0,"refs_out":1,"estado":"Used"},{"id":25,"name":"Ventas_YTD","full_name":"03.03_Ventas_YTD","carpeta":"03_Time_Intelligence","usos":8,"tier":"Alto","refs_in":4,"refs_out":1,"estado":"Used"},{"id":26,"name":"Presup_YTD","full_name":"03.04_Presup_YTD","carpeta":"03_Time_Intelligence","usos":2,"tier":"Medio","refs_in":1,"refs_out":1,"estado":"Used"},{"id":27,"name":"Ventas_Acum_Running","full_name":"03.05_Ventas_Acum_Running","carpeta":"03_Time_Intelligence","usos":1,"tier":"Bajo","refs_in":0,"refs_out":1,"estado":"Used"},{"id":28,"name":"Ventas_Acum_Trim_Ant","full_name":"03.06_Ventas_Acum_Trim_Ant","carpeta":"03_Time_Intelligence","usos":1,"tier":"Bajo","refs_in":0,"refs_out":1,"estado":"Used"},{"id":29,"name":"Ventas_AA","full_name":"03.07_Ventas_AA","carpeta":"03_Time_Intelligence","usos":4,"tier":"Alto","refs_in":1,"refs_out":1,"estado":"Used"},{"id":30,"name":"Ventas_YTD_AA","full_name":"03.08_Ventas_YTD_AA","carpeta":"03_Time_Intelligence","usos":2,"tier":"Medio","refs_in":1,"refs_out":1,"estado":"Used"},{"id":31,"name":"Ventas_Transcurridos_Mes","full_name":"03.09_Ventas_Transcurridos_Mes","carpeta":"03_Time_Intelligence","usos":2,"tier":"Medio","refs_in":1,"refs_out":1,"estado":"Used"},{"id":32,"name":"Ventas_YTD_Transcurridos","full_name":"03.10_Ventas_YTD_Transcurridos","carpeta":"03_Time_Intelligence","usos":1,"tier":"Bajo","refs_in":1,"refs_out":1,"estado":"Used by unused"},{"id":33,"name":"Ventas_AA_Transcurridos_Mes","full_name":"03.11_Ventas_AA_Transcurridos_Mes","carpeta":"03_Time_Intelligence","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":1,"estado":"Unused"},{"id":34,"name":"Ventas_YTD_Transcurridos_AA","full_name":"03.12_Ventas_YTD_Transcurridos_AA","carpeta":"03_Time_Intelligence","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":1,"estado":"Unused"},{"id":35,"name":"Var_vs_MA_Abs","full_name":"04.01_Var_vs_MA_Abs","carpeta":"04_Analisis_Variaciones","usos":4,"tier":"Alto","refs_in":3,"refs_out":2,"estado":"Used"},{"id":36,"name":"Var_vs_MA_Pct","full_name":"04.02_Var_vs_MA_Pct","carpeta":"04_Analisis_Variaciones","usos":2,"tier":"Medio","refs_in":1,"refs_out":2,"estado":"Used"},{"id":37,"name":"Var_YTD_vs_Presup_Abs","full_name":"04.03_Var_YTD_vs_Presup_Abs","carpeta":"04_Analisis_Variaciones","usos":1,"tier":"Bajo","refs_in":1,"refs_out":2,"estado":"Used by unused"},{"id":38,"name":"Flag_Sin_Ventas","full_name":"04.04_Flag_Sin_Ventas","carpeta":"04_Analisis_Variaciones","usos":1,"tier":"Bajo","refs_in":0,"refs_out":2,"estado":"Used"},{"id":39,"name":"Ultima_Fecha_Venta","full_name":"05.01_Ultima_Fecha_Venta","carpeta":"05_Analisis_Ultima_Venta","usos":2,"tier":"Medio","refs_in":1,"refs_out":1,"estado":"Used"},{"id":40,"name":"Ultimo_Importe_Venta","full_name":"05.02_Ultimo_Importe_Venta","carpeta":"05_Analisis_Ultima_Venta","usos":1,"tier":"Bajo","refs_in":0,"refs_out":1,"estado":"Used"},{"id":41,"name":"Fecha_Max_Contexto","full_name":"05.03_Fecha_Max_Contexto","carpeta":"05_Analisis_Ultima_Venta","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":0,"estado":"Unused"},{"id":42,"name":"Fecha_Max_Global","full_name":"05.04_Fecha_Max_Global","carpeta":"05_Analisis_Ultima_Venta","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":0,"estado":"Unused"},{"id":43,"name":"Primera_Fecha_Venta","full_name":"05.05_Primera_Fecha_Venta","carpeta":"05_Analisis_Ultima_Venta","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":0,"estado":"Unused"},{"id":44,"name":"Dias_Sin_Venta","full_name":"05.06_Dias_Sin_Venta","carpeta":"05_Analisis_Ultima_Venta","usos":2,"tier":"Medio","refs_in":1,"refs_out":1,"estado":"Used"},{"id":45,"name":"Visual_Maximo_Mes","full_name":"06.01_Visual_Maximo_Mes","carpeta":"06_Helpers_Visuales","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":1,"estado":"Unused"},{"id":46,"name":"Visual_Minimo_Mes","full_name":"06.02_Visual_Minimo_Mes","carpeta":"06_Helpers_Visuales","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":1,"estado":"Unused"},{"id":47,"name":"Venta_Minima_Linea","full_name":"06.03_Venta_Minima_Linea","carpeta":"06_Helpers_Visuales","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":0,"estado":"Unused"},{"id":48,"name":"Cero","full_name":"06.04_Cero","carpeta":"06_Helpers_Visuales","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":0,"estado":"Unused"},{"id":49,"name":"Venta_Total_0","full_name":"06.05_Venta_Total_0","carpeta":"06_Helpers_Visuales","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":0,"estado":"Unused"},{"id":50,"name":"Venta_Total_Miles","full_name":"06.06_Venta_Total_Miles","carpeta":"06_Helpers_Visuales","usos":1,"tier":"Bajo","refs_in":0,"refs_out":0,"estado":"Used"},{"id":51,"name":"Color_Var_MA","full_name":"07.01_Color_Var_MA","carpeta":"07_Formato_Condicional","usos":1,"tier":"Bajo","refs_in":0,"refs_out":1,"estado":"Used"},{"id":52,"name":"Color_Var_Presup","full_name":"07.02_Color_Var_Presup","carpeta":"07_Formato_Condicional","usos":6,"tier":"Alto","refs_in":0,"refs_out":1,"estado":"Used"},{"id":53,"name":"Color_Pct_MA","full_name":"07.03_Color_Pct_MA","carpeta":"07_Formato_Condicional","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":1,"estado":"Unused"},{"id":54,"name":"Color_Dias_Sin_Venta","full_name":"07.04_Color_Dias_Sin_Venta","carpeta":"07_Formato_Condicional","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":1,"estado":"Unused"},{"id":55,"name":"Color_YTD_Presup","full_name":"07.05_Color_YTD_Presup","carpeta":"07_Formato_Condicional","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":1,"estado":"Unused"},{"id":56,"name":"Icono_Tendencia_MA","full_name":"07.06_Icono_Tendencia_MA","carpeta":"07_Formato_Condicional","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":1,"estado":"Unused"},{"id":57,"name":"Icono_Tendencia_Presup","full_name":"07.07_Icono_Tendencia_Presup","carpeta":"07_Formato_Condicional","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":1,"estado":"Unused"},{"id":58,"name":"Titulo_Contexto","full_name":"08.01_Titulo_Contexto","carpeta":"08_Navegacion_Visual","usos":7,"tier":"Alto","refs_in":0,"refs_out":0,"estado":"Used"},{"id":59,"name":"Titulo_Periodo","full_name":"08.02_Titulo_Periodo","carpeta":"08_Navegacion_Visual","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":0,"estado":"Unused"},{"id":60,"name":"Ultima_Actualizacion","full_name":"08.03_Ultima_Actualizacion","carpeta":"08_Navegacion_Visual","usos":7,"tier":"Alto","refs_in":0,"refs_out":0,"estado":"Used"},{"id":61,"name":"Conteo_Filtros_Activos","full_name":"08.04_Conteo_Filtros_Activos","carpeta":"08_Navegacion_Visual","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":0,"estado":"Unused"},{"id":62,"name":"Eje_Max_Venta_Presup","full_name":"09.01_Eje_Max_Venta_Presup","carpeta":"09_Ejes_Dinamicos","usos":0,"tier":"Sin_Uso","refs_in":0,"refs_out":2,"estado":"Unused"},{"id":63,"name":"Eje_Max_YTD","full_name":"09.02_Eje_Max_YTD","carpeta":"09_Ejes_Dinamicos","usos":1,"tier":"Bajo","refs_in":0,"refs_out":2,"estado":"Used"},{"id":64,"name":"Eje_Max_Barras_Tienda","full_name":"09.03_Eje_Max_Barras_Tienda","carpeta":"09_Ejes_Dinamicos","usos":1,"tier":"Bajo","refs_in":0,"refs_out":1,"estado":"Used"}];
+
+const EDGES = [{"source":4,"target":1},{"source":4,"target":3},{"source":5,"target":4},{"source":5,"target":2},{"source":44,"target":39},{"source":37,"target":25},{"source":37,"target":26},{"source":45,"target":2},{"source":46,"target":2},{"source":38,"target":29},{"source":38,"target":1},{"source":26,"target":19},{"source":11,"target":7},{"source":11,"target":2},{"source":29,"target":1},{"source":33,"target":31},{"source":27,"target":2},{"source":28,"target":1},{"source":13,"target":2},{"source":35,"target":23},{"source":35,"target":1},{"source":36,"target":2},{"source":36,"target":35},{"source":23,"target":1},{"source":24,"target":1},{"source":21,"target":19},{"source":21,"target":2},{"source":20,"target":19},{"source":20,"target":1},{"source":22,"target":19},{"source":22,"target":1},{"source":17,"target":1},{"source":17,"target":15},{"source":16,"target":14},{"source":16,"target":1},{"source":14,"target":1},{"source":15,"target":1},{"source":31,"target":1},{"source":18,"target":2},{"source":39,"target":1},{"source":40,"target":2},{"source":25,"target":1},{"source":30,"target":25},{"source":32,"target":25},{"source":34,"target":32},{"source":10,"target":1},{"source":51,"target":35},{"source":52,"target":20},{"source":53,"target":36},{"source":54,"target":44},{"source":55,"target":37},{"source":56,"target":35},{"source":57,"target":20},{"source":62,"target":19},{"source":62,"target":2},{"source":63,"target":30},{"source":63,"target":25},{"source":64,"target":1}];
+
+// FOLDER_COLORS auto-generated from NODES — no hardcoding needed
+const _PALETTE = [
+  "#3B82F6","#06B6D4","#8B5CF6","#10B981","#F59E0B",
+  "#14B8A6","#6366F1","#EF4444","#EC4899","#D97706",
+  "#84CC16","#F97316","#0EA5E9","#A855F7","#22C55E",
+  "#64748B","#374151","#DC2626","#7C3AED","#0891B2"
+];
+const FOLDER_COLORS = {};
+(function() {
+  const carpetas = [...new Set(NODES.map(n => n.carpeta))].sort();
+  carpetas.forEach((c, i) => {
+    FOLDER_COLORS[c] = _PALETTE[i % _PALETTE.length];
+  });
+})();
+
+const TIER_COLORS  = {"Critica":"#EF4444","Alto":"#F97316","Medio":"#EAB308","Bajo":"#22C55E","Sin_Uso":"#6B7280"};
+const TIER_LABELS  = {"Critica":"🔴 Crítica","Alto":"🟠 Alto","Medio":"🟡 Medio","Bajo":"🟢 Bajo","Sin_Uso":"⚪ Sin Uso"};
+const ESTADO_LABELS = {"Used":"Usado","Unused":"Sin uso","Used by unused":"Usado por no usada"};
+
+// ═══ STATE ═══
+let darkMode = false;
+let activeTiers    = new Set(["Critica","Alto","Medio","Bajo","Sin_Uso"]);
+let activeCarpetas = new Set(Object.keys(FOLDER_COLORS));
+let activeEstados  = new Set(["Used","Unused","Used by unused"]);
+let selectedNode = null;
+let searchQuery  = "";
+let depthLevel   = 1;
+
+// ═══ D3 SETUP ═══
+const CX = () => (window.innerWidth - 230) / 2;
+const CY = () => (window.innerHeight - 80) / 2;
+
+const svg = d3.select("#canvas")
+  .attr("width",  window.innerWidth - 230)
+  .attr("height", window.innerHeight - 80);
+
+const defs = svg.append("defs");
+["light","dark"].forEach(theme => {
+  defs.append("marker").attr("id","arrow-"+theme)
+    .attr("viewBox","0 -5 10 10").attr("refX",1).attr("refY",0)
+    .attr("markerWidth",5).attr("markerHeight",5).attr("orient","auto")
+    .append("path").attr("d","M0,-5L10,0L0,5")
+    .attr("fill", theme==="dark" ? "#334155" : "#94A3B8");
+});
+
+const g = svg.append("g");
+const zoom = d3.zoom().scaleExtent([0.08,8])
+  .on("zoom", e => { g.attr("transform", e.transform); updateMinimap(); });
+svg.call(zoom);
+
+NODES.forEach(n => {
+  n.r = Math.max(8, Math.min(55, Math.sqrt(n.usos)*5 + n.refs_in*1.5 + 4));
+  n.x = CX() + (Math.random()-0.5)*100;
+  n.y = CY() + (Math.random()-0.5)*100;
+});
+
+const simulation = d3.forceSimulation(NODES)
+  .force("link",      d3.forceLink(EDGES).id(d=>d.id).distance(80).strength(0.5))
+  .force("charge",    d3.forceManyBody().strength(-250).distanceMax(400))
+  .force("center",    d3.forceCenter(CX(), CY()))
+  .force("x",         d3.forceX(CX()).strength(0.04))
+  .force("y",         d3.forceY(CY()).strength(0.04))
+  .force("collision", d3.forceCollide(d => d.r + 10));
+
+const linkG = g.append("g").attr("class","links");
+const nodeG = g.append("g").attr("class","nodes");
+
+const link = linkG.selectAll("path").data(EDGES).enter().append("path")
+  .attr("class","link")
+  .attr("stroke", d => {
+    const src = NODES.find(n => n.id === (typeof d.source==="object" ? d.source.id : d.source));
+    return src ? FOLDER_COLORS[src.carpeta] : "#475569";
+  })
+  .attr("stroke-width", 1.2)
+  .attr("marker-end","url(#arrow-light)");
+
+const node = nodeG.selectAll("g").data(NODES).enter().append("g")
+  .attr("class","node")
+  .call(d3.drag()
+    .on("start",(e,d)=>{ if(!e.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+    .on("drag",(e,d)=>{ d.fx=e.x; d.fy=e.y; })
+    .on("end",(e,d)=>{ if(!e.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+node.append("circle")
+  .attr("r", d => d.r)
+  .attr("fill", d => FOLDER_COLORS[d.carpeta]+"55")
+  .attr("stroke", d => TIER_COLORS[d.tier])
+  .attr("stroke-width", d => d.refs_in > 3 ? 2.5 : 1.5);
+
+node.append("text").attr("class","node-label-shadow").attr("dy",0).attr("text-anchor","middle")
+  .attr("font-size", d => d.refs_in > 3 ? 10 : 9)
+  .attr("font-weight", d => d.refs_in > 3 ? 600 : 400)
+  .text(d => d.name);
+
+node.append("text").attr("class","node-label").attr("dy",0).attr("text-anchor","middle")
+  .attr("font-size", d => d.refs_in > 3 ? 10 : 9)
+  .attr("font-weight", d => d.refs_in > 3 ? 600 : 400)
+  .attr("fill","var(--node-label)")
+  .text(d => d.name);
+
+simulation.on("tick", () => {
+  link.each(function(d) {
+    const sx = d.source.x, sy = d.source.y;
+    const tx = d.target.x, ty = d.target.y;
+    const dx = tx - sx, dy = ty - sy;
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    const sr = (d.source.r || 10) + 2;
+    const tr = (d.target.r || 10) + 6;
+    const x1 = sx + dx/dist * sr, y1 = sy + dy/dist * sr;
+    const x2 = tx - dx/dist * tr, y2 = ty - dy/dist * tr;
+    // Subtle curve: small perpendicular offset, alternates side by source id parity
+    // Short links (<80px) stay straight
+    const offset = dist < 80 ? 0 : Math.min(dist * 0.06, 18);
+    const sign = (typeof d.source === "object" ? d.source.id : d.source) % 2 === 0 ? 1 : -1;
+    const nx = -dy/dist * offset * sign;
+    const ny =  dx/dist * offset * sign;
+    const mx = (x1 + x2) / 2 + nx;
+    const my = (y1 + y2) / 2 + ny;
+    d3.select(this).attr("d", `M${x1},${y1} Q${mx},${my} ${x2},${y2}`);
+  });
+  node.attr("transform", d => `translate(${d.x},${d.y})`);
+
+  // Dynamic label positioning: push label away from local center of mass
+  node.each(function(d) {
+    // Find neighbors
+    const neighborPositions = [];
+    EDGES.forEach(l => {
+      const sid = typeof l.source==="object" ? l.source.id : l.source;
+      const tid = typeof l.target==="object" ? l.target.id : l.target;
+      if(sid === d.id && l.target.x != null) neighborPositions.push({x: l.target.x - d.x, y: l.target.y - d.y});
+      if(tid === d.id && l.source.x != null) neighborPositions.push({x: l.source.x - d.x, y: l.source.y - d.y});
+    });
+    // Average direction toward neighbors
+    let ax = 0, ay = 0;
+    neighborPositions.forEach(p => { ax += p.x; ay += p.y; });
+    // Label goes in OPPOSITE direction from neighbors
+    let lx = 0, ly = d.r + 11; // default: below
+    if(neighborPositions.length > 0) {
+      const len = Math.sqrt(ax*ax + ay*ay) || 1;
+      // Opposite of average neighbor direction
+      const ox = -(ax/len), oy = -(ay/len);
+      const labelDist = d.r + 12;
+      lx = ox * labelDist;
+      ly = oy * labelDist;
+      // Clamp vertical: if label would go inside circle, push it below
+      if(Math.abs(ly) < 6) ly = d.r + 11;
+    }
+    d3.select(this).selectAll("text")
+      .attr("dx", lx)
+      .attr("dy", ly + 4)
+      .attr("text-anchor", lx < -8 ? "end" : lx > 8 ? "start" : "middle");
+  });
+
+  updateMinimap();
+});
+
+simulation.on("end", () => {
+  const bounds = g.node().getBBox();
+  const cw = window.innerWidth-230, ch = window.innerHeight-80;
+  if(!bounds.width) return;
+  const scale = Math.min(0.9, 0.85/Math.max(bounds.width/cw, bounds.height/ch));
+  const tx = cw/2 - scale*(bounds.x+bounds.width/2);
+  const ty = ch/2 - scale*(bounds.y+bounds.height/2);
+  svg.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
+});
+
+// ═══ SIDEBAR BUILDERS ═══
+function buildTierFilters() {
+  const el = document.getElementById("tier-filters");
+  const counts = {};
+  NODES.forEach(n => { counts[n.tier] = (counts[n.tier]||0)+1; });
+  ["Critica","Alto","Medio","Bajo","Sin_Uso"].forEach(tier => {
+    const btn = document.createElement("button");
+    btn.className = "tier-btn"; btn.dataset.tier = tier;
+    btn.innerHTML = `<span class="tier-dot" style="background:${TIER_COLORS[tier]}"></span>
+      <span class="tier-name">${TIER_LABELS[tier]}</span>
+      <span class="tier-count">${counts[tier]||0}</span>`;
+    btn.addEventListener("click", () => {
+      if(activeTiers.has(tier)) activeTiers.delete(tier); else activeTiers.add(tier);
+      btn.classList.toggle("inactive", !activeTiers.has(tier));
+      applyFilters();
+    });
+    el.appendChild(btn);
+  });
+}
+function buildCarpetaFilters() {
+  const el = document.getElementById("carpeta-filters");
+  const counts = {};
+  NODES.forEach(n => { counts[n.carpeta] = (counts[n.carpeta]||0)+1; });
+  Object.keys(FOLDER_COLORS).forEach(carp => {
+    if(!counts[carp]) return;
+    const btn = document.createElement("button");
+    btn.className = "carpeta-btn"; btn.dataset.carp = carp;
+    const label = carp.replace(/^\d+_/,"");
+    btn.innerHTML = `<span class="carpeta-dot" style="background:${FOLDER_COLORS[carp]}"></span>
+      <span class="carpeta-name">${label}</span>
+      <span class="carpeta-count">${counts[carp]}</span>`;
+    btn.addEventListener("click", () => {
+      if(activeCarpetas.has(carp)) activeCarpetas.delete(carp); else activeCarpetas.add(carp);
+      btn.classList.toggle("inactive", !activeCarpetas.has(carp));
+      applyFilters();
+    });
+    el.appendChild(btn);
+  });
+}
+function buildEstadoFilters() {
+  const el = document.getElementById("estado-filters");
+  const colors = {"Used":"#22C55E","Unused":"#6B7280","Used by unused":"#F59E0B"};
+  const counts = {};
+  NODES.forEach(n => { counts[n.estado] = (counts[n.estado]||0)+1; });
+  ["Used","Unused","Used by unused"].forEach(est => {
+    if(!counts[est]) return;
+    const btn = document.createElement("button");
+    btn.className = "tier-btn"; btn.dataset.estado = est;
+    btn.innerHTML = `<span class="tier-dot" style="background:${colors[est]}"></span>
+      <span class="tier-name" style="font-size:11px;">${ESTADO_LABELS[est]}</span>
+      <span class="tier-count">${counts[est]}</span>`;
+    btn.addEventListener("click", () => {
+      if(activeEstados.has(est)) activeEstados.delete(est); else activeEstados.add(est);
+      btn.classList.toggle("inactive", !activeEstados.has(est));
+      applyFilters();
+    });
+    el.appendChild(btn);
+  });
+}
+
+// ═══ FILTERS ═══
+function applyFilters() {
+  const visibleIds = new Set(NODES.filter(d =>
+    activeTiers.has(d.tier) && activeCarpetas.has(d.carpeta) && activeEstados.has(d.estado)
+  ).map(d => d.id));
+  node.style("display", d => visibleIds.has(d.id) ? null : "none");
+  link.style("display", l => {
+    const s = typeof l.source==="object" ? l.source.id : l.source;
+    const t = typeof l.target==="object" ? l.target.id : l.target;
+    return (visibleIds.has(s) && visibleIds.has(t)) ? null : "none";
+  });
+  document.getElementById("s-visible").textContent = visibleIds.size;
+}
+window.setAllTiers = function(val) {
+  if(val) activeTiers = new Set(["Critica","Alto","Medio","Bajo","Sin_Uso"]);
+  else activeTiers.clear();
+  document.querySelectorAll(".tier-btn[data-tier]").forEach(b => b.classList.toggle("inactive",!val));
+  applyFilters();
+};
+window.setAllCarpetas = function(val) {
+  if(val) activeCarpetas = new Set(Object.keys(FOLDER_COLORS));
+  else activeCarpetas.clear();
+  document.querySelectorAll(".carpeta-btn[data-carp]").forEach(b => b.classList.toggle("inactive",!val));
+  applyFilters();
+};
+
+// ═══ DEPTH HELPERS ═══
+function getNeighbors(nodeId, depth) {
+  const visited = new Set([nodeId]);
+  let frontier = [nodeId];
+  for(let d=0; d<depth; d++) {
+    const next = [];
+    EDGES.forEach(l => {
+      const s = typeof l.source==="object" ? l.source.id : l.source;
+      const t = typeof l.target==="object" ? l.target.id : l.target;
+      if(frontier.includes(s) && !visited.has(t)) { visited.add(t); next.push(t); }
+      if(frontier.includes(t) && !visited.has(s)) { visited.add(s); next.push(s); }
+    });
+    frontier = next;
+  }
+  return visited;
+}
+function getConnectedEdges(nodeIds) {
+  const edgeIdxs = new Set();
+  EDGES.forEach((l,i) => {
+    const s = typeof l.source==="object" ? l.source.id : l.source;
+    const t = typeof l.target==="object" ? l.target.id : l.target;
+    if(nodeIds.has(s) && nodeIds.has(t)) edgeIdxs.add(i);
+  });
+  return edgeIdxs;
+}
+
+// ═══ TOOLTIP ═══
+const tip = document.getElementById("tooltip");
+let tipTimeout = null;
+function buildTipHTML(d) {
+  const tc = TIER_COLORS[d.tier], fc = FOLDER_COLORS[d.carpeta];
+  return `<div class="t-header">
+    <div class="t-icon" style="background:${fc}22;border:1px solid ${fc}44;color:${fc}">${d.full_name.split(".")[0]}</div>
+    <div><div class="t-name">${d.name}</div><div class="t-full">${d.full_name}</div></div>
+  </div>
+  <div class="t-divider"></div>
+  <div class="t-grid">
+    <div class="t-cell"><div class="t-cell-label">Usos</div><div class="t-cell-val" style="color:${tc}">${d.usos}</div></div>
+    <div class="t-cell"><div class="t-cell-label">Me llaman</div><div class="t-cell-val">${d.refs_in}</div></div>
+    <div class="t-cell"><div class="t-cell-label">Yo llamo</div><div class="t-cell-val">${d.refs_out}</div></div>
+    <div class="t-cell"><div class="t-cell-label">Estado</div><div class="t-cell-val" style="font-size:10px">${ESTADO_LABELS[d.estado]||d.estado}</div></div>
+  </div>
+  <div style="margin-top:8px">
+    <span class="t-badge" style="background:${tc}18;color:${tc};border-color:${tc}40">${TIER_LABELS[d.tier]}</span>
+    <span class="t-badge" style="background:${fc}18;color:${fc};border-color:${fc}40">${d.carpeta.replace(/^\d+_/,"")}</span>
+  </div>`;
+}
+function positionTip(e) {
+  const tw=270, th=200, offset=80;
+  const x = e.clientX, y = e.clientY;
+  tip.style.left = (x+offset+tw > window.innerWidth ? x-tw-offset : x+offset)+"px";
+  tip.style.top  = (y+th > window.innerHeight ? y-th-20 : y-40)+"px";
+}
+node.on("mouseover",(e,d)=>{ if(selectedNode!==null) return;
+  clearTimeout(tipTimeout); tip.innerHTML=buildTipHTML(d); tip.style.display="block"; positionTip(e);
+}).on("mousemove",(e,d)=>{ if(selectedNode!==null) return; positionTip(e);
+}).on("mouseout",()=>{ if(selectedNode!==null) return;
+  tipTimeout=setTimeout(()=>{ tip.style.display="none"; },1500); });
+
+// ═══ SELECTION ═══
+function applySelection(d) {
+  selectedNode = d.id;
+  tip.style.display = "none";
+  const connectedNodes = getNeighbors(d.id, depthLevel);
+  const connectedEdges = getConnectedEdges(connectedNodes);
+  if(document.getElementById("isolate-selected").checked) {
+    node.style("display", n => connectedNodes.has(n.id) ? null : "none");
+    link.style("display", (l,i) => connectedEdges.has(i) ? null : "none");
+  } else {
+    node.classed("dimmed", n => !connectedNodes.has(n.id))
+        .classed("highlighted", n => connectedNodes.has(n.id))
+        .classed("selected", n => n.id===d.id);
+    link.classed("dimmed",(l,i)=>!connectedEdges.has(i))
+        .classed("highlighted",(l,i)=>connectedEdges.has(i));
+  }
+  d3.selectAll(".selection-ring").remove();
+  d3.select(nodeG.selectAll("g").filter(n=>n.id===d.id).node())
+    .insert("circle","text").attr("class","selection-ring")
+    .attr("r",d.r+7).attr("stroke",TIER_COLORS[d.tier]).attr("stroke-width",1.5);
+  document.getElementById("selected-info").textContent =
+    `${d.name} · ${connectedNodes.size-1} vecinos (nivel ${depthLevel})`;
+  openDetailPanel(d);
+}
+function clearSelection() {
+  selectedNode = null;
+  tip.style.display = "none";
+  node.classed("dimmed",false).classed("highlighted",false).classed("selected",false);
+  link.classed("dimmed",false).classed("highlighted",false);
+  d3.selectAll(".selection-ring").remove();
+  document.getElementById("selected-info").textContent = "";
+  closeDetailPanel();
+  applyFilters();
+}
+node.on("click",(e,d)=>{ e.stopPropagation(); if(selectedNode===d.id){clearSelection();return;} applySelection(d); });
+svg.on("click", clearSelection);
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") clearSelection(); });
+
+// ═══ DETAIL PANEL ═══
+function openDetailPanel(d) {
+  document.getElementById("detail-panel").classList.add("open");
+  document.getElementById("dp-title").textContent = d.name;
+  const fc = FOLDER_COLORS[d.carpeta], tc = TIER_COLORS[d.tier];
+  const callers = EDGES.filter(l=>(typeof l.target==="object"?l.target.id:l.target)===d.id)
+    .map(l=>NODES.find(n=>n.id===(typeof l.source==="object"?l.source.id:l.source))).filter(Boolean);
+  const callees = EDGES.filter(l=>(typeof l.source==="object"?l.source.id:l.source)===d.id)
+    .map(l=>NODES.find(n=>n.id===(typeof l.target==="object"?l.target.id:l.target))).filter(Boolean);
+  const chip = n => {
+    const c = FOLDER_COLORS[n.carpeta];
+    return `<span class="dp-measure-chip" style="background:${c}18;color:${c};border-color:${c}44"
+      onclick="window._clickChip(${n.id})">${n.name}</span>`;
+  };
+  document.getElementById("dp-content").innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <div style="width:10px;height:10px;border-radius:50%;background:${tc};flex-shrink:0;"></div>
+      <span style="font-size:12px;color:var(--text-muted);">${d.carpeta.replace(/^\d+_/,"")}</span>
+    </div>
+    <div class="dp-stat-grid">
+      <div class="dp-stat"><div class="dp-stat-label">Usos totales</div><div class="dp-stat-val" style="color:${tc}">${d.usos}</div></div>
+      <div class="dp-stat"><div class="dp-stat-label">Tier</div><div style="font-size:13px;font-weight:700;margin-top:6px;">${TIER_LABELS[d.tier]}</div></div>
+      <div class="dp-stat"><div class="dp-stat-label">Me llaman</div><div class="dp-stat-val">${d.refs_in}</div></div>
+      <div class="dp-stat"><div class="dp-stat-label">Yo llamo</div><div class="dp-stat-val">${d.refs_out}</div></div>
+    </div>
+    <div class="dp-stat" style="margin-bottom:8px;"><div class="dp-stat-label">Estado</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-top:4px;">${ESTADO_LABELS[d.estado]||d.estado}</div>
+    </div>
+    ${callers.length?`<div class="dp-section-title">↘ Me llaman (${callers.length})</div><div>${callers.map(chip).join("")}</div>`:""}
+    ${callees.length?`<div class="dp-section-title">↗ Yo llamo (${callees.length})</div><div>${callees.map(chip).join("")}</div>`:""}
+    ${!callers.length&&!callees.length?`<div style="color:var(--text-muted);font-size:11px;margin-top:8px;">Sin dependencias internas.</div>`:""}`;
+}
+function closeDetailPanel() {
+  document.getElementById("detail-panel").classList.remove("open");
+}
+document.getElementById("dp-close").addEventListener("click", clearSelection);
+window._clickChip = function(nodeId) {
+  const d = NODES.find(n=>n.id===nodeId);
+  if(!d) return;
+  clearSelection();
+  applySelection(d);
+  const t = d3.zoomTransform(svg.node());
+  svg.transition().duration(500).call(zoom.transform,
+    d3.zoomIdentity.translate(CX()-d.x*t.k, CY()-d.y*t.k).scale(t.k));
+};
+
+// ═══ DEPTH BUTTONS ═══
+document.querySelectorAll(".depth-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".depth-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    depthLevel = parseInt(btn.dataset.depth);
+    if(selectedNode!==null) {
+      const d = NODES.find(n=>n.id===selectedNode);
+      if(d) { clearSelection(); applySelection(d); }
+    }
+  });
+});
+
+// ═══ SEARCH ═══
+document.getElementById("search").addEventListener("input", e => {
+  searchQuery = e.target.value.trim();
+  selectedNode = null; tip.style.display = "none"; closeDetailPanel();
+  node.classed("dimmed",false).classed("highlighted",false).classed("search-match",false);
+  link.classed("dimmed",false).classed("highlighted",false);
+  if(searchQuery) {
+    const q = searchQuery.toLowerCase();
+    const matchIds = new Set(NODES.filter(d =>
+      d.name.toLowerCase().includes(q)||d.full_name.toLowerCase().includes(q)
+    ).map(d=>d.id));
+    node.classed("search-match",d=>matchIds.has(d.id)).classed("dimmed",d=>!matchIds.has(d.id));
+    link.classed("dimmed",l=>{
+      const s=typeof l.source==="object"?l.source.id:l.source;
+      const t=typeof l.target==="object"?l.target.id:l.target;
+      return !matchIds.has(s)&&!matchIds.has(t);
+    });
+    document.getElementById("s-visible").textContent = matchIds.size;
+  } else { applyFilters(); }
+});
+
+// ═══ PHYSICS SLIDERS ═══
+document.getElementById("charge-slider").addEventListener("input", e => {
+  document.getElementById("charge-val").textContent = e.target.value;
+  simulation.force("charge",d3.forceManyBody().strength(-e.target.value).distanceMax(400));
+  simulation.alpha(0.5).restart();
+});
+document.getElementById("dist-slider").addEventListener("input", e => {
+  document.getElementById("dist-val").textContent = e.target.value;
+  simulation.force("link",d3.forceLink(EDGES).id(d=>d.id).distance(+e.target.value).strength(0.5));
+  simulation.alpha(0.5).restart();
+});
+document.getElementById("gravity-slider").addEventListener("input", e => {
+  const v = +e.target.value/100;
+  document.getElementById("gravity-val").textContent = e.target.value;
+  simulation.force("x",d3.forceX(CX()).strength(v));
+  simulation.force("y",d3.forceY(CY()).strength(v));
+  simulation.alpha(0.5).restart();
+});
+
+// ═══ VISUAL OPTIONS ═══
+document.getElementById("show-labels").addEventListener("change", e =>
+  node.selectAll("text").style("display", e.target.checked?null:"none"));
+document.getElementById("show-arrows").addEventListener("change", e =>
+  svg.classed("hide-arrows",!e.target.checked));
+document.getElementById("cluster-mode").addEventListener("change", e => {
+  if(e.target.checked) {
+    const cl = Object.keys(FOLDER_COLORS);
+    const centers = {};
+    cl.forEach((c,i)=>{
+      const angle=(i/cl.length)*2*Math.PI, r=Math.min(CX(),CY())*0.55;
+      centers[c]={x:CX()+r*Math.cos(angle),y:CY()+r*Math.sin(angle)};
+    });
+    simulation.force("cluster-x",d3.forceX(d=>centers[d.carpeta]?centers[d.carpeta].x:CX()).strength(0.18));
+    simulation.force("cluster-y",d3.forceY(d=>centers[d.carpeta]?centers[d.carpeta].y:CY()).strength(0.18));
+    simulation.force("x",null).force("y",null);
+  } else {
+    simulation.force("cluster-x",null).force("cluster-y",null);
+    simulation.force("x",d3.forceX(CX()).strength(0.04));
+    simulation.force("y",d3.forceY(CY()).strength(0.04));
+  }
+  simulation.alpha(0.8).restart();
+});
+
+// ═══ ZOOM CONTROLS ═══
+document.getElementById("zoom-in").addEventListener("click",()=>svg.transition().duration(300).call(zoom.scaleBy,1.4));
+document.getElementById("zoom-out").addEventListener("click",()=>svg.transition().duration(300).call(zoom.scaleBy,0.7));
+document.getElementById("zoom-fit").addEventListener("click",()=>{
+  const bounds=g.node().getBBox(), cw=window.innerWidth-230, ch=window.innerHeight-80;
+  if(!bounds.width) return;
+  const scale=Math.min(0.9,0.85/Math.max(bounds.width/cw,bounds.height/ch));
+  svg.transition().duration(500).call(zoom.transform,
+    d3.zoomIdentity.translate(cw/2-scale*(bounds.x+bounds.width/2),ch/2-scale*(bounds.y+bounds.height/2)).scale(scale));
+});
+document.getElementById("reset-btn").addEventListener("click",()=>{ clearSelection(); svg.transition().duration(500).call(zoom.transform,d3.zoomIdentity); });
+document.getElementById("recalc-btn").addEventListener("click",()=>{
+  NODES.forEach(d=>{d.x=CX()+(Math.random()-0.5)*200;d.y=CY()+(Math.random()-0.5)*200;d.vx=0;d.vy=0;});
+  simulation.alpha(1).restart();
+});
+
+// ═══ EXPORT SVG ═══
+document.getElementById("export-btn").addEventListener("click",()=>{
+  const s=document.getElementById("canvas");
+  const blob=new Blob([new XMLSerializer().serializeToString(s)],{type:"image/svg+xml"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="red_dependencias.svg"; document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+});
+
+// ═══ THEME ═══
+document.getElementById("theme-toggle").addEventListener("click",()=>{
+  darkMode=!darkMode;
+  document.body.classList.toggle("dark",darkMode);
+  document.getElementById("theme-toggle").textContent=darkMode?"☀️":"🌙";
+  const showArrows=document.getElementById("show-arrows").checked;
+  if(showArrows) link.attr("marker-end",`url(#arrow-${darkMode?"dark":"light"})`);
+});
+
+// ═══ MINIMAP ═══
+const minimapSvg=d3.select("#minimap-svg");
+function updateMinimap() {
+  try {
+    const bounds=g.node().getBBox();
+    if(!bounds.width||!bounds.height) return;
+    const mmW=130,mmH=90;
+    const mmScale=Math.min(mmW/bounds.width,mmH/bounds.height)*0.85;
+    const offX=(mmW-bounds.width*mmScale)/2-bounds.x*mmScale;
+    const offY=(mmH-bounds.height*mmScale)/2-bounds.y*mmScale;
+    minimapSvg.selectAll(".mm-node").remove();
+    minimapSvg.selectAll(".mm-node").data(NODES).enter().append("circle")
+      .attr("class","mm-node")
+      .attr("cx",d=>d.x*mmScale+offX).attr("cy",d=>d.y*mmScale+offY)
+      .attr("r",d=>Math.max(1,d.r*mmScale*0.6))
+      .attr("fill",d=>FOLDER_COLORS[d.carpeta]+"99").attr("stroke","none");
+    const t=d3.zoomTransform(svg.node());
+    const cw=window.innerWidth-230,ch=window.innerHeight-80;
+    d3.select("#minimap-viewport")
+      .attr("x",(-t.x/t.k)*mmScale+offX).attr("y",(-t.y/t.k)*mmScale+offY)
+      .attr("width",Math.max(5,(cw/t.k)*mmScale))
+      .attr("height",Math.max(5,(ch/t.k)*mmScale));
+  } catch(e){}
+}
+
+// ═══ SIDEBAR TOGGLE ═══
+let sidebarOpen = true;
+document.getElementById("sidebar-toggle").addEventListener("click",()=>{
+  sidebarOpen = !sidebarOpen;
+  document.getElementById("sidebar").classList.toggle("collapsed",!sidebarOpen);
+  document.getElementById("sidebar-toggle").classList.toggle("collapsed",!sidebarOpen);
+  document.getElementById("sidebar-toggle").textContent = sidebarOpen?"‹":"›";
+  document.getElementById("canvas").classList.toggle("sidebar-collapsed",!sidebarOpen);
+  document.getElementById("infobar").classList.toggle("sidebar-collapsed",!sidebarOpen);
+  setTimeout(()=>{
+    const nW = sidebarOpen ? window.innerWidth-230 : window.innerWidth;
+    svg.attr("width",nW).attr("height",window.innerHeight-80);
+    simulation.force("center",d3.forceCenter(sidebarOpen?CX():window.innerWidth/2,CY()));
+    updateMinimap();
+  },320);
+});
+
+// ═══ HELP PANEL ═══
+let helpOpen = false;
+function toggleHelp() {
+  helpOpen = !helpOpen;
+  document.getElementById("help-panel").classList.toggle("open",helpOpen);
+  document.getElementById("help-btn").classList.toggle("active",helpOpen);
+  document.getElementById("canvas").classList.toggle("help-open",helpOpen);
+  document.getElementById("zoom-controls").classList.toggle("help-open",helpOpen);
+}
+document.getElementById("help-btn").addEventListener("click",toggleHelp);
+document.getElementById("help-close-x").addEventListener("click",()=>{ helpOpen=true; toggleHelp(); });
+
+// ═══ WELCOME BANNER ═══
+(function(){
+  const banner = document.getElementById("welcome-banner");
+  function dismissBanner(){
+    banner.style.transition="opacity 0.4s,transform 0.4s";
+    banner.style.opacity="0";
+    banner.style.transform="translateX(-50%) translateY(10px)";
+    setTimeout(()=>{ if(banner.parentNode) banner.remove(); },420);
+  }
+  document.getElementById("wb-dismiss").addEventListener("click",dismissBanner);
+  document.getElementById("wb-help").addEventListener("click",()=>{ toggleHelp(); dismissBanner(); });
+  setTimeout(dismissBanner,10000);
+})();
+
+// ═══ CONFIG MODAL ═══
+function applyConfig(headerTitle, headerSub) {
+  CONFIG.headerTitle = headerTitle;
+  CONFIG.headerSub   = headerSub;
+  document.getElementById("logo-icon").textContent    = headerTitle.charAt(0).toUpperCase();
+  document.getElementById("header-title").textContent = headerTitle;
+  document.getElementById("header-sub").textContent   = headerSub;
+  document.getElementById("page-title").textContent   = headerTitle;
+}
+function openConfigModal() {
+  document.getElementById("cfg-title").value = CONFIG.headerTitle;
+  document.getElementById("cfg-sub").value   = CONFIG.headerSub;
+  document.getElementById("cfg-title-count").textContent = CONFIG.headerTitle.length+" / 60";
+  document.getElementById("cfg-sub-count").textContent   = CONFIG.headerSub.length+" / 80";
+  document.getElementById("prev-title").textContent = CONFIG.headerTitle;
+  document.getElementById("prev-sub").textContent   = CONFIG.headerSub;
+  document.getElementById("prev-logo").textContent  = CONFIG.headerTitle.charAt(0).toUpperCase();
+  document.getElementById("cfg-error").style.display = "none";
+  document.getElementById("config-modal").style.display = "flex";
+  setTimeout(()=>document.getElementById("cfg-title").focus(),50);
+}
+function closeConfigModal() {
+  document.getElementById("config-modal").style.display = "none";
+}
+function updatePreview() {
+  const t = document.getElementById("cfg-title").value||"Título del gráfico";
+  const s = document.getElementById("cfg-sub").value||"Subtítulo";
+  document.getElementById("prev-title").textContent = t;
+  document.getElementById("prev-sub").textContent   = s;
+  document.getElementById("prev-logo").textContent  = t.charAt(0).toUpperCase();
+}
+document.getElementById("edit-config-btn").addEventListener("click",openConfigModal);
+document.getElementById("cfg-close-x").addEventListener("click",closeConfigModal);
+document.getElementById("cfg-cancel").addEventListener("click",closeConfigModal);
+document.getElementById("config-modal").addEventListener("click",e=>{ if(e.target===document.getElementById("config-modal")) closeConfigModal(); });
+document.getElementById("cfg-title").addEventListener("input",function(){
+  document.getElementById("cfg-title-count").textContent=this.value.length+" / 60";
+  document.getElementById("cfg-error").style.display="none";
+  this.style.borderColor=""; updatePreview();
+});
+document.getElementById("cfg-sub").addEventListener("input",function(){
+  document.getElementById("cfg-sub-count").textContent=this.value.length+" / 80";
+  updatePreview();
+});
+document.getElementById("cfg-save").addEventListener("click",()=>{
+  const title=document.getElementById("cfg-title").value.trim();
+  const sub=document.getElementById("cfg-sub").value.trim();
+  if(!title){
+    document.getElementById("cfg-error").style.display="inline";
+    document.getElementById("cfg-title").style.borderColor="#EF4444";
+    document.getElementById("cfg-title").focus(); return;
+  }
+  applyConfig(title,sub); closeConfigModal();
+});
+document.getElementById("cfg-title").addEventListener("keydown",e=>{ if(e.key==="Enter") document.getElementById("cfg-sub").focus(); });
+document.getElementById("cfg-sub").addEventListener("keydown",e=>{ if(e.key==="Enter") document.getElementById("cfg-save").click(); });
+
+// ═══ INIT ═══
+const _totalNodes = NODES.length;
+const _totalEdges = EDGES.length;
+const _hubsCount  = NODES.filter(n=>n.usos>=10).length;
+document.getElementById("page-title").textContent   = CONFIG.headerTitle;
+document.getElementById("logo-icon").textContent    = CONFIG.headerTitle.charAt(0).toUpperCase();
+document.getElementById("header-title").textContent = CONFIG.headerTitle;
+document.getElementById("header-sub").textContent   = CONFIG.headerSub;
+document.getElementById("s-nodes").textContent   = _totalNodes;
+document.getElementById("s-edges").textContent   = _totalEdges;
+document.getElementById("s-visible").textContent = _totalNodes;
+document.getElementById("s-hubs").textContent    = _hubsCount;
+buildTierFilters();
+buildCarpetaFilters();
+buildEstadoFilters();
+
+window.addEventListener("resize",()=>{
+  svg.attr("width",window.innerWidth-230).attr("height",window.innerHeight-80);
+  simulation.force("center",d3.forceCenter(CX(),CY()));
+  simulation.force("x",d3.forceX(CX()).strength(0.04));
+  simulation.force("y",d3.forceY(CY()).strength(0.04));
+});
+
+}); // end window.load
+</script>
+</body>
+</html>
